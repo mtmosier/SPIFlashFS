@@ -4,7 +4,6 @@
 
 
 SPIFlash flash;
-uint16_t fileNum = 1;
 
 
 
@@ -21,7 +20,7 @@ void setup()
 
 		SPIFlashFSFile* file;
 
-		file = fs.openFile(fileNum);
+		file = fs.openFile(fs.getFileCount() - 1);
 
 		if (file) {
 			Serial.println("File contents:");
@@ -30,8 +29,11 @@ void setup()
 			for (uint32_t pos = 1; pos <= file->getFileSize(); pos++) {
 				uint8_t dataByte = file->readByte();
 
-				Serial.print(dataByte);
-				if (pos % 21) {
+				if (dataByte < 16) {
+					Serial.print(' ');
+				}
+				Serial.print(dataByte, HEX);
+				if (pos % 8) {
 					Serial.print(' ');
 				} else {
 					Serial.println();

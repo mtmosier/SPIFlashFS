@@ -7,7 +7,7 @@ import os
 
 inputDir = '/home/mtmosier/personal/projects/soundPlayer/8khz/'
 inputPattern = inputDir + '*.wav'
-device = '/dev/ttyUSB0'
+device = '/dev/ttyUSB1'
 baudrate = 115200
 
 
@@ -46,6 +46,7 @@ while True:
 
 		ser.timeout = 300  # the erase command takes a considerable amount of time
 		response = sendByte(b'\x65')  # e - erase chip
+		sleep(5)
 
 		if response == b'\x01':  # 001 - uninitialized
 			response = sendByte(b'\x69')  # i - initialize the filesystem

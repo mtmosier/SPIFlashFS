@@ -1,21 +1,24 @@
 #include "SPIFlashFSFile.h"
 
 
+const bool performFastRead = false;
+
+
 
 SPIFlashFSFile::SPIFlashFSFile(SPIFlash *flashObj, SPIFlashFS *fsObj)
 {
+	_initialized = false;
 	_flashObj = flashObj;
 	_fsObj = fsObj;
-	_initialized = false;
 	_currentPosition = 0;
 }
 
 
 SPIFlashFSFile::SPIFlashFSFile(SPIFlash *flashObj, SPIFlashFS *fsObj, uint16_t fileNum)
 {
+	_initialized = false;
 	_flashObj = flashObj;
 	_fsObj = fsObj;
-	_initialized = false;
 	_currentPosition = 0;
 
 	loadFile(fileNum);
@@ -90,11 +93,8 @@ SPIFlashFSFile::writeByte(uint8_t dataByte)
 		result = _flashObj->writeByte(address, dataByte);
 
 		if (result) {
-			//*** Increment position. If out of bounds wrap back to 0
-			_currentPosition++;
-			if (_currentPosition >= _fileSize) {
-				_currentPosition = _fileSize;
-			}
+			//*** Increment position
+			seek(getFilePosition() + 1);
 		}
 	}
 
@@ -107,21 +107,21 @@ SPIFlashFSFile::writeByteArray(uint8_t *dataBuffer, uint16_t bufferSize)
 {
 	uint16_t bytesToWrite = bufferSize;
 	uint32_t address = 0;
+	uint32_t curFilePosition;
 
 	if (isInitialized() && available()) {
 
-		if (_currentPosition + bytesToWrite >= _fileSize) {
-			bytesToWrite = _fileSize - _currentPosition;
+		curFilePosition = getFilePosition();
+
+		if (curFilePosition + bytesToWrite >= _fileSize) {
+			bytesToWrite = _fileSize - curFilePosition;
 		}
 
 		address = _getCurrentAddress();
 		_flashObj->writeByteArray(address, dataBuffer, bytesToWrite);
 
-		//*** Adjust position. If out of bounds wrap back to 0
-		_currentPosition += bytesToWrite;
-		if (_currentPosition >= _fileSize) {
-			_currentPosition = _fileSize;
-		}
+		//*** Adjust position
+		seek(getFilePosition() + bytesToWrite);
 	}
 
 	return bytesToWrite;
@@ -137,13 +137,10 @@ SPIFlashFSFile::readByte()
 	if (isInitialized() && available()) {
 
 		address = _getCurrentAddress();
-		dataByte = _flashObj->readByte(address);
+		dataByte = _flashObj->readByte(address, performFastRead);
 
-		//*** Increment position. If out of bounds wrap back to 0
-		_currentPosition++;
-		if (_currentPosition >= _fileSize) {
-			_currentPosition = _fileSize;
-		}
+		//*** Increment position
+		seek(getFilePosition() + 1);
 	}
 
 	return dataByte;
@@ -160,18 +157,15 @@ SPIFlashFSFile::readByteArray(uint8_t *dataBuffer, uint16_t bufferSize)
 
 		bytesToRead = bufferSize;
 
-		if (_currentPosition + bytesToRead >= _fileSize) {
-			bytesToRead = _fileSize - _currentPosition;
+		if (getFilePosition() + bytesToRead >= _fileSize) {
+			bytesToRead = _fileSize - getFilePosition();
 		}
 
 		address = _getCurrentAddress();
-		_flashObj->readByteArray(address, dataBuffer, bytesToRead);
+		_flashObj->readByteArray(address, dataBuffer, bytesToRead, performFastRead);
 
-		//*** Adjust position. If out of bounds wrap back to 0
-		_currentPosition += bytesToRead;
-		if (_currentPosition >= _fileSize) {
-			_currentPosition = _fileSize;
-		}
+		//*** Adjust position
+		seek(getFilePosition() + bytesToRead);
 	}
 
 	return bytesToRead;
@@ -182,7 +176,7 @@ SPIFlashFSFile::readByteArray(uint8_t *dataBuffer, uint16_t bufferSize)
 bool
 SPIFlashFSFile::available()
 {
-	if (_currentPosition < _fileSize) {
+	if (getFilePosition() < _fileSize) {
 		return true;
 	}
 	return false;
@@ -225,9 +219,12 @@ SPIFlashFSFile::seek(uint32_t position)
 	if (!isInitialized())  return false;
 
 	//*** Bounds checking
-	if (position >= _fileSize)  return false;
+	if (position >= _fileSize) {
+		_currentPosition = _fileSize;
+	} else {
+		_currentPosition = position;
+	}
 
-	_currentPosition = position;
 	return true;
 }
 
@@ -257,5 +254,5 @@ uint32_t
 SPIFlashFSFile::_getCurrentAddress()
 {
 	if (!isInitialized())  return;
-	return _currentPosition + _fileLocationAddress;
+	return getFilePosition() + _fileLocationAddress;
 }
